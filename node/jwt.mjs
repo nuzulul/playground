@@ -1,4 +1,4 @@
-import { createHmac, timingSafeEqual } from 'node:crypto';
+import { createHmac, timingSafeEqual, randomBytes } from 'node:crypto';
 
 // Helper to convert strings or objects to URL-safe Base64
 const base64UrlEncode = (obj) => {
@@ -86,7 +86,8 @@ export const verify = (token, secret) => {
 
 
 
-const SECRET_KEY = 'your_super_secure_and_long_random_secret_string';
+//const SECRET_KEY = 'your_super_secure_and_long_random_secret_string';
+const SECRET_KEY = randomBytes(32).toString('hex');console.log('SECRET_KEY : ',SECRET_KEY)
 const userPayload = { userId: '12345', role: 'admin' };
 
 // 1. Generate Token (Expires in 15 minutes)
