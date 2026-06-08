@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Vanilla JS SPA Hash Router</title>
+</head>
+<body>
+    <!-- Navigation menu -->
+    <nav>
+        <a href="#/">Home</a>
+        <a href="#/about">About</a>
+        <a href="#/contact">Contact</a>
+        <a href="#/invalid-link">Broken Link</a>
+    </nav>
+
+    <!-- Target container for dynamic content rendering -->
+    <div id="app"></div>
+
+    <script>
+		// 1. Define the routes and their respective HTML content templates
+		const routes = {
+			'/': '<h1>Home</h1><p>Welcome to the home page!</p>',
+			'/about': '<h1>About</h1><p>Learn more about our team here.</p>',
+			'/contact': '<h1>Contact</h1><p>Get in touch with us anytime.</p>',
+			'/404': '<h1>404</h1><p>Page not found.</p>'
+		};
+
+		// 2. Resolve the current URL hash and update the target container view
+		function resolveRoute() {
+			const appContainer = document.getElementById('app');
+			
+			// Extract path from the hash string (e.g., "#/about" becomes "/about")
+			// Fallback to absolute root if the hash parameter string is completely empty
+			let path = window.location.hash.slice(1) || '/';
+			
+			// Match route template or assign the 404 page template fallback
+			const viewHTML = routes[path] || routes['/404'];
+			
+			// Inject the selected markup content into the core container
+			appContainer.innerHTML = viewHTML;
+		}
+
+		// 3. Register global listeners for routing state execution hooks
+		// Executes when navigating using browser history buttons or link triggers
+		window.addEventListener('hashchange', resolveRoute);
+
+		// Executes when rendering the application for the very first time on load
+		window.addEventListener('DOMContentLoaded', resolveRoute);
+	
+	</script>
+</body>
+</html>

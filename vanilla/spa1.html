@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Advanced JS Hash Router</title>
+</head>
+<body>
+
+    <nav>
+        <a href="#/">Home</a> | 
+        <a href="#/user/42?status=active&mode=dark">User 42 (Dynamic + Query)</a> | 
+        <a href="#/about">About (External File)</a>
+    </nav>
+
+    <div id="app"></div>
+
+    <script>
+			// 1. Define routes. 
+			// Can be a string, a function, or an object pointing to an external HTML file.
+			const routes = {
+				'/': () => '<h1>Home</h1><p>Welcome to our app!</p>',
+				'/user/:id': (params, query) => {
+					return `<h1>User Profile</h1>
+							<p>User ID: <strong>${params.id}</strong></p>
+							<p>Query Params: <pre>${JSON.stringify(query, null, 2)}</pre></p>`;
+				},
+				'/about': { file: './pages/about.html' }, // External component path
+				'/404': () => '<h1>404</h1><p>Page not found.</p>'
+			};
+
+			// Helper: Convert string template paths into RegExp to capture variables (like :id)
+			function cleanRoute(routePath) {
+				const paramNames = [];
+				const regexPath = routePath
+					//.replace(/([.+*?^=!:${}()|\[\]\/\\])/g, "\\$1") // Escape special characters
+					.replace(/([.+*?^=!${}()|\[\]\/\\])/g, "\\$1") // Escape special characters
+					.replace(/:(\w+)/g, (_, paramName) => {
+						paramNames.push(paramName);
+						return "([^/]+)"; // Capture anything that is not a slash
+					});
+				return { regex: new RegExp(`^${regexPath}$`), paramNames };
+			}
+
+			// 2. Main Router Function
+			async function router() {
+				const app = document.getElementById('app');
+				
+				// Get full hash path (e.g., "/user/42?status=active")
+				let rawPath = window.location.hash.slice(1) || '/';
+				
+				// Separate the path from the query parameters string
+				const [path, queryString] = rawPath.split('?');
+				
+				// Parse Query Parameters into a clean JavaScript Object
+				const query = {};
+				if (queryString) {
+					const urlParams = new URLSearchParams(queryString);
+					for (const [key, value] of urlParams) {
+						query[key] = value;
+					}
+				}
+
+				let matchedRoute = null;
+				let params = {};
+
+				// Loop through defined routes to find a matching pattern
+				for (const routePattern in routes) {
+					const { regex, paramNames } = cleanRoute(routePattern);
+					const match = path.match(regex);
+
+					if (match) {
+						matchedRoute = routes[routePattern];
+						// Map captured URL values back to their parameter keys
+						paramNames.forEach((name, index) => {
+							params[name] = match[index + 1];
+						});
+						break;
+					}
+				}
+
+				// Fallback to 404 if no path matches
+				if (!matchedRoute) {
+					matchedRoute = routes['/404'];
+				}
+
+				// 3. Render Content based on route type
+				try {
+					if (typeof matchedRoute === 'function') {
+						// Render inline functional string template
+						app.innerHTML = matchedRoute(params, query);
+					} else if (matchedRoute.file) {
+						// Fetch and inject external HTML component files
+						const response = await fetch(matchedRoute.file);
+						if (!response.ok) throw new Error('Page fetch failed');
+						app.innerHTML = await response.text();
+					}
+				} catch (error) {
+					app.innerHTML = `<h1>Error</h1><p>Could not load this page.</p>`;
+				}
+			}
+
+			// Listen for hash modifications and initial page boot loading cycles
+			window.addEventListener('hashchange', router);
+			window.addEventListener('DOMContentLoaded', router);
+	
+	</script>
+</body>
+</html>

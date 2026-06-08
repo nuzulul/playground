@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SPA Framework Super Lengkap + LocalStorage & Form POST</title>
+    <style>
+        .nested-box { border: 2px dashed #ccc; padding: 15px; margin-top: 15px; }
+        .global-status { float: right; background: #e0e0e0; padding: 5px 10px; border-radius: 4px; font-size: 14px; }
+        .form-group { margin-bottom: 10px; }
+        .form-group label { display: block; margin-bottom: 5px; }
+        
+        .page-fade {
+            animation: fadeIn 0.3s ease-in-out forwards;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(5px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="global-status">
+        🛒 Keranjang: <span id="cart-counter">0</span> item | 👤 User: <span id="user-status">Tamu</span>
+    </div>
+
+    <nav>
+        <a href="#/">Beranda</a> | 
+        <a href="#/dashboard">Dashboard</a> | 
+        <a href="#/dashboard/profile">Profil</a> | 
+        <a href="#/dashboard/settings">Pengaturan</a> | 
+        <a href="#/shop">Toko</a> |
+        <a href="#/contact">Kontak (Form)</a>
+    </nav>
+
+    <hr>
+    
+    <!-- Kontainer Utama Aplikasi -->
+    <div id="app" class="page-fade"></div>
+
+    <script>
+// ==========================================
+// 1. STATE MANAGEMENT DENGAN LOCALSTORAGE
+// ==========================================
+const STORAGE_KEY = 'my_spa_store';
+
+// Ambil data lama dari localStorage jika ada, atau pakai data default
+const savedState = JSON.parse(localStorage.getItem(STORAGE_KEY));
+const defaultState = {
+    isLoggedIn: false,
+    cartCount: 0,
+    username: "Tamu"
+};
+
+const Store = {
+    state: savedState || defaultState,
+    
+    setState(newState) {
+        this.state = { ...this.state, ...newState };
+        // Simpan perubahan ke dalam memori browser
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(this.state));
+        this.renderGlobalElements();
+    },
+
+    renderGlobalElements() {
+        document.getElementById('cart-counter').innerText = this.state.cartCount;
+        document.getElementById('user-status').innerText = this.state.username;
+    }
+};
+
+// ==========================================
+// 2. SIMULASI METODE POST (PENGIRIMAN FORM)
+// ==========================================
+function handleFormSubmit(event) {
+    event.preventDefault(); // Mencegah browser muat ulang halaman (reload)
+    
+    // Ambil data dari elemen input form
+    const formData = new FormData(event.target);
+    const payload = {
+        nama: formData.get('nama'),
+        pesan: formData.get('pesan')
+    };
+
+    console.log('Mengirim data (Simulasi POST):', payload);
+    
+    // Tampilkan pesan sukses ke pengguna secara dinamis
+    const resultBox = document.getElementById('form-result');
+    resultBox.innerHTML = `
+        <div style="background: #d4edda; color: #155724; padding: 10px; border-radius: 4px; margin-top: 10px;">
+            ✓ Pesan berhasil dikirim untuk <strong>${payload.nama}</strong>! (Cek konsol F12)
+        </div>
+    `;
+    
+    event.target.reset(); // Bersihkan isi form setelah sukses
+}
+
+// ==========================================
+// 3. KONFIGURASI RUTE APLIKASI
+// ==========================================
+let currentCleanup = null;
+
+const routes = {
+    '/': {
+        render: () => `
+            <h1>Selamat Datang</h1>
+            <p>Cobalah klik login, lalu refresh halaman web ini. Status Anda akan tetap tersimpan!</p>
+            <button onclick="Store.setState({ isLoggedIn: true, username: 'Budi Luhur' }); alert('Anda berhasil login!');">Klik untuk Login</button>
+            <button onclick="Store.setState({ isLoggedIn: false, username: 'Tamu' }); alert('Anda telah keluar!');">Klik untuk Logout</button>
+        `
+    },
+    '/dashboard': {
+        requiresAuth: true,
+        render: () => `
+            <h1>Dashboard Pengguna</h1>
+            <p>Halo <strong>${Store.state.username}</strong>, data login Anda aman di LocalStorage.</p>
+            <div id="nested-content" class="nested-box">Silakan pilih submenu di atas.</div>
+        `,
+        subViews: {
+            '/dashboard/profile': () => `<h3>Profil</h3><p>Nama Pengguna: ${Store.state.username}</p>`,
+            '/dashboard/settings': () => '<h3>Pengaturan</h3><p>Konfigurasi akun Anda di sini.</p>'
+        }
+    },
+    '/shop': {
+        render: () => `
+            <h1>Toko Online Mini</h1>
+            <p>Isi keranjang belanja tidak akan hilang walaupun Anda pindah halaman atau me-refresh browser.</p>
+            <button onclick="Store.setState({ cartCount: Store.state.cartCount + 1 })">Tambah ke Keranjang (+1)</button>
+            <button onclick="Store.setState({ cartCount: 0 })">Kosongkan Keranjang</button>
+        `
+    },
+    '/contact': {
+        render: () => `
+            <h1>Hubungi Kami</h1>
+            <p>Kirim pesan kepada kami tanpa memicu muat ulang halaman (SPA POST simulation).</p>
+            <form onsubmit="handleFormSubmit(event)">
+                <div class="form-group">
+                    <label>Nama Anda:</label>
+                    <input type="text" name="nama" required style="width: 100%; max-width: 300px; padding: 5px;">
+                </div>
+                <div class="form-group">
+                    <label>Isi Pesan:</label>
+                    <textarea name="pesan" required style="width: 100%; max-width: 300px; padding: 5px; height: 80px;"></textarea>
+                </div>
+                <button type="submit">Kirim Data</button>
+            </form>
+            <div id="form-result"></div>
+        `
+    },
+    '/404': {
+        render: () => '<h1>404</h1><p>Halaman tidak ditemukan.</p>'
+    }
+};
+
+// ==========================================
+// 4. ENGINE ROUTER & ANIMASI TRANSISI
+// ==========================================
+function findRoute(path) {
+    if (routes[path]) return { route: routes[path], isSubView: false, mainPath: path };
+    for (const mainPath in routes) {
+        if (routes[mainPath].subViews && routes[mainPath].subViews[path]) {
+            return { route: routes[mainPath], isSubView: true, mainPath: mainPath, subPath: path };
+        }
+    }
+    return { route: routes['/404'], isSubView: false, mainPath: '/404' };
+}
+
+function triggerFadeAnimation(element) {
+    element.classList.remove('page-fade');
+    void element.offsetWidth; // Trik memicu ulang animasi CSS
+    element.classList.add('page-fade');
+}
+
+function router() {
+    if (currentCleanup) {
+        currentCleanup();
+        currentCleanup = null;
+    }
+
+    const app = document.getElementById('app');
+    let path = window.location.hash.slice(1) || '/';
+    const match = findRoute(path);
+
+    if (match.route.requiresAuth && !Store.state.isLoggedIn) {
+        alert('Akses Ditolak! Anda harus Login terlebih dahulu di halaman Beranda.');
+        window.location.hash = '#/';
+        return;
+    }
+
+    const nestedContainer = document.getElementById('nested-content');
+
+    if (match.isSubView && nestedContainer) {
+        nestedContainer.innerHTML = match.route.subViews[match.subPath]();
+        triggerFadeAnimation(nestedContainer);
+    } else {
+        app.innerHTML = match.route.render();
+        triggerFadeAnimation(app);
+
+        if (match.isSubView) {
+            const dynamicBox = document.getElementById('nested-content');
+            if (dynamicBox) dynamicBox.innerHTML = match.route.subViews[match.subPath]();
+        }
+
+        if (match.route.onMount) {
+            currentCleanup = match.route.onMount();
+        }
+    }
+}
+
+window.addEventListener('hashchange', router);
+window.addEventListener('DOMContentLoaded', () => {
+    Store.renderGlobalElements(); // Muat tampilan navbar dari data LocalStorage awal
+    router();
+});
+	
+	</script>
+</body>
+</html>

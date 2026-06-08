@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Router SPA Vanilla JS Super Lengkap</title>
+    <style>
+        .nested-box { border: 2px dashed #ccc; padding: 15px; margin-top: 15px; }
+        .active { font-weight: bold; color: green; }
+    </style>
+</head>
+<body>
+
+    <nav>
+        <a href="#/">Beranda</a> | 
+        <a href="#/dashboard">Dashboard (Butuh Login)</a> | 
+        <a href="#/dashboard/profile">Profil (Sub-view Bersarang)</a> | 
+        <a href="#/dashboard/settings">Pengaturan (Sub-view Bersarang)</a> | 
+        <a href="#/timer">Halaman Timer (Uji Pembersihan)</a>
+    </nav>
+
+    <hr>
+    <!-- Kontainer Utama Aplikasi -->
+    <div id="app"></div>
+
+    <script>
+// Status simulasi login pengguna
+const auth = {
+    isLoggedIn: false,
+    login() { this.isLoggedIn = true; },
+    logout() { this.isLoggedIn = false; }
+};
+
+// Tempat menyimpan fungsi pembersihan dari halaman aktif saat ini
+let currentCleanup = null;
+
+// Konfigurasi Rute Aplikasi
+const routes = {
+    '/': {
+        render: () => `
+            <h1>Selamat Datang</h1>
+            <p>Ini adalah halaman publik.</p>
+            <button onclick="auth.login(); alert('Anda berhasil login!');">Klik untuk Login</button>
+            <button onclick="auth.logout(); alert('Anda telah keluar!');">Klik untuk Logout</button>
+        `
+    },
+    '/dashboard': {
+        requiresAuth: true,
+        render: () => `
+            <h1>Dashboard Pengguna</h1>
+            <p>Selamat datang di area rahasia Anda!</p>
+            <!-- Kontainer untuk Sub-view Bersarang -->
+            <div id="nested-content" class="nested-box">Pilih menu profil atau pengaturan di atas.</div>
+        `,
+        // Sub-view yang bisa bersarang di dalam dashboard
+        subViews: {
+            '/dashboard/profile': () => '<h3>Profil Pengguna</h3><p>Nama: Budi Luhur</p>',
+            '/dashboard/settings': () => '<h3>Pengaturan</h3><p>Ubah kata sandi Anda di sini.</p>'
+        }
+    },
+    '/timer': {
+        render: () => `
+            <h1>Halaman Penguji Timer</h1>
+            <p>Lihat angka yang bertambah di konsol browser (F12) setiap detik.</p>
+            <p>Jika Anda pindah halaman, timer ini akan mati otomatis berkat fungsi pembersihan.</p>
+        `,
+        onMount: () => {
+            console.log('Halaman timer dibuka. Memulai hitungan...');
+            const intervalId = setInterval(() => {
+                console.log(`Waktu berjalan: ${new Date().toLocaleTimeString()}`);
+            }, 1000);
+
+            // Mengembalikan fungsi pembersihan
+            return () => {
+                console.log('Meninggalkan halaman timer. Membersihkan memori...');
+                clearInterval(intervalId);
+            };
+        }
+    },
+    '/404': {
+        render: () => '<h1>404</h1><p>Halaman tidak ditemukan.</p>'
+    }
+};
+
+// Fungsi untuk mencocokkan rute utama atau sub-rute
+function findRoute(path) {
+    // 1. Cek kecocokan rute utama langsung
+    if (routes[path]) return { route: routes[path], isSubView: false, mainPath: path };
+
+    // 2. Cek kecocokan untuk sub-view bersarang
+    for (const mainPath in routes) {
+        if (routes[mainPath].subViews && routes[mainPath].subViews[path]) {
+            return { route: routes[mainPath], isSubView: true, mainPath: mainPath, subPath: path };
+        }
+    }
+    return { route: routes['/404'], isSubView: false, mainPath: '/404' };
+}
+
+// Mesin Penggerak Router Utama
+function router() {
+    // Jalankan fungsi pembersihan jika ada komponen halaman sebelumnya yang ditinggalkan
+    if (currentCleanup && typeof currentCleanup === 'function') {
+        currentCleanup();
+        currentCleanup = null; 
+    }
+
+    const app = document.getElementById('app');
+    let path = window.location.hash.slice(1) || '/';
+
+    const match = findRoute(path);
+
+    // Guard Perlindungan Rute: Jika butuh login tapi pengguna belum login
+    if (match.route.requiresAuth && !auth.isLoggedIn) {
+        alert('Akses ditolak! Anda harus masuk log terlebih dahulu.');
+        window.location.hash = '#/'; // Tendang pengguna kembali ke beranda
+        return;
+    }
+
+    // Ambil elemen konten sub-view jika ada
+    const nestedContainer = document.getElementById('nested-content');
+
+    if (match.isSubView && nestedContainer) {
+        // Kasus A: Halaman utama sudah ada, hanya perlu memperbarui sub-view di dalam kotak kecil
+        nestedContainer.innerHTML = match.route.subViews[match.subPath]();
+    } else {
+        // Kasus B: Mengganti total seluruh konten halaman utama
+        app.innerHTML = match.route.render();
+
+        // Jika rute utama ini langsung merujuk ke sebuah sub-view saat pertama kali dimuat
+        if (match.isSubView) {
+            const dynamicNestedBox = document.getElementById('nested-content');
+            if (dynamicNestedBox) {
+                dynamicNestedBox.innerHTML = match.route.subViews[match.subPath]();
+            }
+        }
+
+        // Jalankan efek saat halaman baru selesai dimuat, dan simpan fungsi pembersihnya jika ada
+        if (match.route.onMount) {
+            currentCleanup = match.route.onMount();
+        }
+    }
+}
+
+// Dengarkan perubahan URL hash dan saat pertama kali web dibuka
+window.addEventListener('hashchange', router);
+window.addEventListener('DOMContentLoaded', router);
+	
+	</script>
+</body>
+</html>

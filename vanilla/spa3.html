@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SPA Framework Lengkap dengan State & Animasi</title>
+    <style>
+        /* Gaya dasar kotak sub-view bersarang */
+        .nested-box { border: 2px dashed #ccc; padding: 15px; margin-top: 15px; }
+        
+        /* Bar Navigasi Atas */
+        .global-status { float: right; background: #e0e0e0; padding: 5px 10px; border-radius: 4px; font-size: 14px; }
+
+        /* KUNCI UTAMA: Animasi Transisi Halaman Halus (Fade-in) */
+        .page-fade {
+            animation: fadeIn 0.3s ease-in-out forwards;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(5px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="global-status">
+        🛒 Keranjang: <span id="cart-counter">0</span> item | 👤 User: <span id="user-status">Tamu</span>
+    </div>
+
+    <nav>
+        <a href="#/">Beranda</a> | 
+        <a href="#/dashboard">Dashboard</a> | 
+        <a href="#/dashboard/profile">Profil</a> | 
+        <a href="#/dashboard/settings">Pengaturan</a> | 
+        <a href="#/timer">Timer</a> |
+        <a href="#/shop">Toko</a>
+    </nav>
+
+    <hr>
+    
+    <!-- Kontainer Utama Aplikasi -->
+    <div id="app" class="page-fade"></div>
+
+    <script>
+// ==========================================
+// 1. STATE MANAGEMENT GLOBAL (Mini Store)
+// ==========================================
+const Store = {
+    // Data internal aplikasi
+    state: {
+        isLoggedIn: false,
+        cartCount: 0,
+        username: "Tamu"
+    },
+    
+    // Fungsi untuk mengubah data (Mutasi)
+    setState(newState) {
+        this.state = { ...this.state, ...newState };
+        this.renderGlobalElements(); // Otomatis perbarui UI global saat data berubah
+    },
+
+    // Memperbarui elemen UI di luar sistem router utama (seperti navbar)
+    renderGlobalElements() {
+        document.getElementById('cart-counter').innerText = this.state.cartCount;
+        document.getElementById('user-status').innerText = this.state.username;
+    }
+};
+
+// ==========================================
+// 2. CONFIG ROUTER & SIKLUS HIDUP
+// ==========================================
+let currentCleanup = null;
+
+const routes = {
+    '/': {
+        render: () => `
+            <h1>Selamat Datang</h1>
+            <p>Ini adalah halaman publik utama.</p>
+            <button onclick="Store.setState({ isLoggedIn: true, username: 'Budi Luhur' }); alert('Anda berhasil login!');">Klik untuk Login</button>
+            <button onclick="Store.setState({ isLoggedIn: false, username: 'Tamu' }); alert('Anda telah keluar!');">Klik untuk Logout</button>
+        `
+    },
+    '/dashboard': {
+        requiresAuth: true,
+        render: () => `
+            <h1>Dashboard Pengguna</h1>
+            <p>Halo <strong>${Store.state.username}</strong>, selamat datang di area rahasia!</p>
+            <div id="nested-content" class="nested-box">Silakan pilih submenu profil atau pengaturan di atas.</div>
+        `,
+        subViews: {
+            '/dashboard/profile': () => `<h3>Profil</h3><p>Nama Pengguna: ${Store.state.username}</p>`,
+            '/dashboard/settings': () => '<h3>Pengaturan</h3><p>Konfigurasi akun Anda di sini.</p>'
+        }
+    },
+    '/timer': {
+        render: () => `
+            <h1>Halaman Penguji Timer</h1>
+            <p>Buka konsol browser (F12) untuk melihat detik berjalan.</p>
+        `,
+        onMount: () => {
+            console.log('Timer dimulai.');
+            const id = setInterval(() => console.log(`Detik: ${new Date().toLocaleTimeString()}`), 1000);
+            return () => {
+                console.log('Timer dihentikan karena pindah halaman.');
+                clearInterval(id);
+            };
+        }
+    },
+    '/shop': {
+        render: () => `
+            <h1>Toko Online Mini</h1>
+            <p>Gunakan tombol di bawah untuk menguji State Store Global secara real-time.</p>
+            <button onclick="Store.setState({ cartCount: Store.state.cartCount + 1 })">Tambah ke Keranjang (+1)</button>
+            <button onclick="Store.setState({ cartCount: 0 })">Kosongkan Keranjang</button>
+        `
+    },
+    '/404': {
+        render: () => '<h1>404</h1><p>Halaman tidak ditemukan.</p>'
+    }
+};
+
+// ==========================================
+// 3. ENGINE ROUTER DENGAN ANIMASI TRANSISI
+// ==========================================
+function findRoute(path) {
+    if (routes[path]) return { route: routes[path], isSubView: false, mainPath: path };
+    for (const mainPath in routes) {
+        if (routes[mainPath].subViews && routes[mainPath].subViews[path]) {
+            return { route: routes[mainPath], isSubView: true, mainPath: mainPath, subPath: path };
+        }
+    }
+    return { route: routes['/404'], isSubView: false, mainPath: '/404' };
+}
+
+function triggerFadeAnimation(element) {
+    // Reset kelas animasi agar bisa berjalan ulang setiap kali rute berganti
+    element.classList.remove('page-fade');
+    void element.offsetWidth; // Trik ajaib memicu reflow CSS agar animasi me-reset
+    element.classList.add('page-fade');
+}
+
+function router() {
+    // 1. Eksekusi pembersihan halaman lama jika ada
+    if (currentCleanup) {
+        currentCleanup();
+        currentCleanup = null;
+    }
+
+    const app = document.getElementById('app');
+    let path = window.location.hash.slice(1) || '/';
+    const match = findRoute(path);
+
+    // 2. Guard Otentikasi: Cek status langsung dari Store Global
+    if (match.route.requiresAuth && !Store.state.isLoggedIn) {
+        alert('Akses Ditolak! Anda harus Login terlebih dahulu di halaman Beranda.');
+        window.location.hash = '#/';
+        return;
+    }
+
+    const nestedContainer = document.getElementById('nested-content');
+
+    // 3. Render Tampilan
+    if (match.isSubView && nestedContainer) {
+        // Jika hanya mengganti sub-view bersarang di dalam kotak kecil
+        nestedContainer.innerHTML = match.route.subViews[match.subPath]();
+        triggerFadeAnimation(nestedContainer); // Jalankan animasi halus pada sub-view saja
+    } else {
+        // Jika merombak seluruh layar halaman utama
+        app.innerHTML = match.route.render();
+        triggerFadeAnimation(app); // Jalankan animasi halus pada seluruh halaman utama
+
+        if (match.isSubView) {
+            const dynamicBox = document.getElementById('nested-content');
+            if (dynamicBox) dynamicBox.innerHTML = match.route.subViews[match.subPath]();
+        }
+
+        // Jalankan siklus hidup pasang halaman baru
+        if (match.route.onMount) {
+            currentCleanup = match.route.onMount();
+        }
+    }
+}
+
+// Jalankan saat pertama kali web dibuka untuk menyinkronkan data navbar awal
+window.addEventListener('hashchange', router);
+window.addEventListener('DOMContentLoaded', () => {
+    Store.renderGlobalElements();
+    router();
+});
+	
+	</script>
+</body>
+</html>
