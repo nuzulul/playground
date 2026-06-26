@@ -1,0 +1,8 @@
+title: playground
+description: playground
+google_analytics: 
+show_downloads: false
+theme: jekyll-theme-midnight
+
+gems:
+  - jekyll-mentions
