@@ -2,7 +2,7 @@ title: playground
 description: playground
 google_analytics: 
 show_downloads: false
-theme: jekyll-theme-midnight
+theme: jekyll-theme-slate
 
 gems:
   - jekyll-mentions
